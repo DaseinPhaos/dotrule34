@@ -64,7 +64,9 @@ namespace dotrule
             }
 
             var content = response.Content;
-            return LookForThumbsInHtmlContent(content);
+            var ids = LookForIdsInHtmlContent(content);
+            var urls = ids.Select(id => $"index.php?page=post&s=view&id={id.Substring(1)}").ToArray();
+            return urls;
         }
 
         static string[] LookForThumbsInHtmlContent(string content)
@@ -83,6 +85,19 @@ namespace dotrule
             }).ToArray();
         }
 
+        static string[] LookForIdsInHtmlContent(string content)
+        {
+            var doc = new HtmlDocument();
+            doc.LoadHtml(content);
+
+            return doc.DocumentNode.Descendants("span")
+            .Where(span => span.HasClass("thumb"))
+            .Select(span =>
+            {
+                return span.Attributes["id"].Value;
+            }).ToArray();
+        }
+
         static async Task<string> GetDownloadUrl(string decodedUrl)
         {
             var request = new RestRequest(decodedUrl, Method.GET);
@@ -97,15 +112,20 @@ namespace dotrule
             return nodes[0];
         }
 
-        static async Task DownloadWebmAt(string srcUrl, string fileNamePrefix = "")
+        static async Task<bool> DownloadWebmAt(string srcUrl, string fileNamePrefix = "")
         {
-            if (srcUrl == null) return;
+            if (srcUrl == null) return false;
             var fileNameIdx = srcUrl.LastIndexOf('/');
-            if (fileNameIdx == -1 || fileNameIdx == srcUrl.Length - 1) return;
+            if (fileNameIdx == -1 || fileNameIdx == srcUrl.Length - 1) return false;
             var fileName = fileNamePrefix + srcUrl.Substring(fileNameIdx + 1);
             var downloadClient = new RestClient(srcUrl);
             var downloadResponse = await downloadClient.ExecuteTaskAsync(new RestRequest("", Method.GET));
+            if (downloadResponse.StatusCode != System.Net.HttpStatusCode.OK)
+            {
+                return false;
+            }
             System.IO.File.WriteAllBytes(fileName, downloadResponse.RawBytes);
+            return true;
         }
 
         static void InitClients()
@@ -124,6 +144,7 @@ namespace dotrule
             if (args[0] == "pool")
             {
                 Console.WriteLine("Downloading pool " + args[1]);
+                InitClients();
                 var urls = GetThumbsInPool(args[1]).Result;
                 ParaDownload(urls);
             }
@@ -203,6 +224,7 @@ namespace dotrule
                 Thread.Sleep((int)(100 + rand.NextDouble() * 800));
                 var downloadUrl = GetDownloadUrl(v).Result;
                 DownloadWebmAt(downloadUrl, string.Format("{0:D4}.", index + indexOffset)).Wait();
+                // TODO: success code and stuff
                 int currentDownloadIndex = downloadIndex++;
                 var sb = new System.Text.StringBuilder(decodedValues.Length);
 
