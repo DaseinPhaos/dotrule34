@@ -49,6 +49,26 @@ namespace dotrule
             }
 
             var content = response.Content;
+            return LookForThumbsInHtmlContent(content);
+        }
+
+        static async Task<string[]> GetThumbsInPool(string poolId)
+        {
+            var request = new RestRequest("index.php?page=pool&s=show&id=" + poolId, Method.GET);
+            var response = await client.ExecuteTaskAsync(request);
+
+            if (response.StatusCode != System.Net.HttpStatusCode.OK)
+            {
+                // TODO: exception?
+                return null;
+            }
+
+            var content = response.Content;
+            return LookForThumbsInHtmlContent(content);
+        }
+
+        static string[] LookForThumbsInHtmlContent(string content)
+        {
             var doc = new HtmlDocument();
             doc.LoadHtml(content);
 
@@ -97,10 +117,24 @@ namespace dotrule
         {
             if (args.Length < 2)
             {
-                Console.WriteLine("Usage: dotrule pid tag [additionalTags]");
+                Console.WriteLine("Usage: dotrule PID TAG [TAGS], or dotrule pool POOLID");
                 return;
             }
 
+            if (args[0] == "pool")
+            {
+                Console.WriteLine("Downloading pool " + args[1]);
+                var urls = GetThumbsInPool(args[1]).Result;
+                ParaDownload(urls);
+            }
+            else
+            {
+                DownloadWithSearchAndPid(args);
+            }
+        }
+
+        static void DownloadWithSearchAndPid(string[] args)
+        {
             int pid;
             int pidTo = -1;
             var toIdx = args[0].IndexOf('-');
@@ -149,7 +183,11 @@ namespace dotrule
         static int SearchAndDownload(int pid, string tag, params string[] additionalTags)
         {
             var decodedValues = SearchFor(pid.ToString(), tag, additionalTags).Result;
+            return ParaDownload(decodedValues, pid);
+        }
 
+        static int ParaDownload(string[] decodedValues, int indexOffset = 0)
+        {
             if (decodedValues == null)
             {
                 Console.WriteLine("No valid match found!");
@@ -164,7 +202,7 @@ namespace dotrule
                 var rand = new Random();
                 Thread.Sleep((int)(100 + rand.NextDouble() * 800));
                 var downloadUrl = GetDownloadUrl(v).Result;
-                DownloadWebmAt(downloadUrl, string.Format("{0:D4}.", index + pid)).Wait();
+                DownloadWebmAt(downloadUrl, string.Format("{0:D4}.", index + indexOffset)).Wait();
                 int currentDownloadIndex = downloadIndex++;
                 var sb = new System.Text.StringBuilder(decodedValues.Length);
 
