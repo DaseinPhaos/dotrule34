@@ -4,7 +4,7 @@ webm downloader for `rule34.xxx`.
 
 ## Requirements
 
-dotnetcore 3.0
+dotnetcore 3.0, or download the [Win64 standalone release](https://github.com/DaseinPhaos/dotrule34/releases/tag/v0.1).
 
 ## Usage
 
